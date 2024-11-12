@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:web_socket_channel/io.dart';
+import 'package:action_cable/web_socket/web_socket.interface.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'channel_id.dart';
 
@@ -12,10 +13,12 @@ typedef _OnChannelSubscribedFunction = void Function();
 typedef _OnChannelDisconnectedFunction = void Function();
 typedef _OnChannelMessageFunction = void Function(Map message);
 
+IWebSocket _webSocket = IWebSocket();
+
 class ActionCable {
   DateTime? _lastPing;
   late Timer _timer;
-  late IOWebSocketChannel _socketChannel;
+  late WebSocketChannel _socketChannel;
   late StreamSubscription _listener;
   _OnConnectedFunction? onConnected;
   _OnCannotConnectFunction? onCannotConnect;
@@ -33,7 +36,7 @@ class ActionCable {
     this.onCannotConnect,
   }) {
     // rails gets a ping every 3 seconds
-    _socketChannel = IOWebSocketChannel.connect(url,
+    _socketChannel = _webSocket.connect(url,
         headers: headers, pingInterval: Duration(seconds: 3));
     _listener = _socketChannel.stream.listen(_onData, onError: (_) {
       this.disconnect(); // close a socket and the timer
@@ -124,10 +127,14 @@ class ActionCable {
         }
         break;
       case 'disconnect':
-        final channelId = parseChannelId(payload['identifier']);
-        final onDisconnected = _onChannelDisconnectedCallbacks[channelId];
-        if (onDisconnected != null) {
-          onDisconnected();
+        try {
+          final channelId = parseChannelId(payload['identifier']);
+          final onDisconnected = _onChannelDisconnectedCallbacks[channelId];
+          if (onDisconnected != null) {
+            onDisconnected();
+          }
+        } catch (e) {
+          print(e);
         }
         break;
       case 'confirm_subscription':
